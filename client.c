@@ -3,10 +3,9 @@
 #include <string.h>
 #include <pthread.h>
 #include <arpa/inet.h>
-#include <netdb.h>
 #include "networking.h"
 
-#define SERVER_HOST "localhost"  // Replace with server's hostname if necessary
+#define SERVER_IP "10.42.0.1"  // Replace with your server's IP address
 #define PORT 8080
 #define BUFFER_SIZE 1024
 
@@ -29,17 +28,17 @@ void *receive_messages(void *arg) {
 }
 
 int main() {
-    struct hostent *server_host = gethostbyname(SERVER_HOST);
-    if (server_host == NULL) {
-        fprintf(stderr, "Host not found.\n");
-        exit(EXIT_FAILURE);
-    }
-
     int sockfd = create_socket();
     struct sockaddr_in server_addr;
+
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
-    memcpy(&server_addr.sin_addr.s_addr, server_host->h_addr, server_host->h_length);
+    
+    // Convert SERVER_IP to binary form and set in server_addr
+    if (inet_pton(AF_INET, SERVER_IP, &server_addr.sin_addr) <= 0) {
+        fprintf(stderr, "Invalid address or address not supported.\n");
+        exit(EXIT_FAILURE);
+    }
 
     if (connect(sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("Connection failed");
