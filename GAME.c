@@ -13,8 +13,13 @@ int main(int argc, char *argv[])
 	SDL_Texture *bgTexture = SDL_CreateTextureFromSurface(renderer, bgSurface);
 
 	SDL_FreeSurface(bgSurface);
+	
+	SDL_Surface *playerSurface = IMG_Load("player.png");
+    SDL_Texture *playerTexture = SDL_CreateTextureFromSurface(renderer, playerSurface);
+    SDL_FreeSurface(playerSurface);
 
-	SDL_Rect rect = { 800 / 2 - 25, 600 / 2 - 25, 50, 50 };
+    SDL_Rect playerRect = { 1000 / 2 - 25, 1000 / 2 - 25, 100, 100 };
+
 	SDL_Event event;
 
 	int go = 1;
@@ -26,13 +31,13 @@ int main(int argc, char *argv[])
 			}
 			if(event.type == SDL_KEYDOWN){
 				if(event.key.keysym.sym == SDLK_w){
-					rect.y -= 10;
+					playerRect.y -= 20;
 				}else if(event.key.keysym.sym == SDLK_s){
-					rect.y += 10;
+					playerRect.y += 20;
 				}else if(event.key.keysym.sym == SDLK_d){
-					rect.x += 10;
+					playerRect.x += 20;
 				}else if(event.key.keysym.sym == SDLK_a){
-					rect.x -= 10;
+					playerRect.x -= 20;
 				}
 			}
 		}
@@ -40,8 +45,7 @@ int main(int argc, char *argv[])
 		SDL_RenderClear(renderer);
 		SDL_RenderCopy(renderer, bgTexture, NULL, NULL);
 		
-		SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); // Red color
-        SDL_RenderFillRect(renderer, &rect); // Draw the rectangle
+		SDL_RenderCopy(renderer, playerTexture, NULL, &playerRect);
         SDL_RenderPresent(renderer);
 		SDL_Delay(16);
 	}
