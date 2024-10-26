@@ -3,6 +3,8 @@
 #include <SDL2/SDL_timer.h>
 #include "graphic.h"
 
+char key;
+
 int move()
 {
 	SDL_Init(SDL_INIT_VIDEO);
@@ -34,19 +36,15 @@ int move()
 				if(event.key.keysym.sym == SDLK_w){
 					playerRect.y -= 20;
 					key = 'W';
-					go = 0;
 				}else if(event.key.keysym.sym == SDLK_s){
 					playerRect.y += 20;
 					key = 'S';
-					go = 0;
 				}else if(event.key.keysym.sym == SDLK_d){
 					playerRect.x += 20;
 					key = 'D';
-					go = 0;
 				}else if(event.key.keysym.sym == SDLK_a){
 					playerRect.x -= 20;
 					key = 'A';
-					go = 0;
 				}
 			}
 		}
