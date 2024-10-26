@@ -1,66 +1,62 @@
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_image.h>
-#include <SDL2/SDL_timer.h>
+#include <stdio.h>
+#include <string.h>
+#include "networking.h"
 #include "graphic.h"
 
-char key;
+#define COMMAND_SIZE 2
 
-int move()
-{
-	SDL_Init(SDL_INIT_VIDEO);
-	IMG_Init(IMG_INIT_PNG);
-	SDL_Window *win = SDL_CreateWindow("GAME",SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED,1000, 1000, 0);
-	SDL_Renderer* renderer = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
+// Function to handle player movement input
+void move(int sockfd) {
+    SDL_Event event;
+    char command[COMMAND_SIZE];
+    
+    // Initialize SDL
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+        fprintf(stderr, "Could not initialize SDL: %s\n", SDL_GetError());
+        return;
+    }
 
-	SDL_Surface *bgSurface = IMG_Load("field.png");
-	SDL_Texture *bgTexture = SDL_CreateTextureFromSurface(renderer, bgSurface);
+    SDL_Window *window = SDL_CreateWindow("Player Movement", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 640, 480, SDL_WINDOW_SHOWN);
+    if (!window) {
+        fprintf(stderr, "Could not create window: %s\n", SDL_GetError());
+        SDL_Quit();
+        return;
+    }
 
-	SDL_FreeSurface(bgSurface);
-	
-	SDL_Surface *playerSurface = IMG_Load("player.png");
-    SDL_Texture *playerTexture = SDL_CreateTextureFromSurface(renderer, playerSurface);
-    SDL_FreeSurface(playerSurface);
+    // Main loop to handle events
+    int running = 1;
+    while (running) {
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_QUIT) {
+                running = 0; // Exit the loop if the window is closed
+            } else if (event.type == SDL_KEYDOWN) {
+                switch (event.key.keysym.sym) {
+                    case SDLK_w:
+                        command[0] = 'W';
+                        command[1] = '\0'; // Null-terminate the string
+                        break;
+                    case SDLK_a:
+                        command[0] = 'A';
+                        command[1] = '\0'; // Null-terminate the string
+                        break;
+                    case SDLK_s:
+                        command[0] = 'S';
+                        command[1] = '\0'; // Null-terminate the string
+                        break;
+                    case SDLK_d:
+                        command[0] = 'D';
+                        command[1] = '\0'; // Null-terminate the string
+                        break;
+                    default:
+                        continue; // Ignore other keys
+                }
+                send_data(sockfd, command, strlen(command)); // Send command to the server
+            }
+        }
+    }
 
-    SDL_Rect playerRect = { 1000 / 2 - 25, 1000 / 2 - 25, 100, 100 };
-
-	SDL_Event event;
-
-	int go = 1;
-	while(go){
-		while(SDL_PollEvent(&event) != 0){
-			if(event.type == SDL_QUIT){
-				go = 0;
-				break;
-			}
-			if(event.type == SDL_KEYDOWN){
-				if(event.key.keysym.sym == SDLK_w){
-					playerRect.y -= 20;
-					key = 'W';
-				}else if(event.key.keysym.sym == SDLK_s){
-					playerRect.y += 20;
-					key = 'S';
-				}else if(event.key.keysym.sym == SDLK_d){
-					playerRect.x += 20;
-					key = 'D';
-				}else if(event.key.keysym.sym == SDLK_a){
-					playerRect.x -= 20;
-					key = 'A';
-				}
-			}
-		}
-		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-		SDL_RenderClear(renderer);
-		SDL_RenderCopy(renderer, bgTexture, NULL, NULL);
-		
-		SDL_RenderCopy(renderer, playerTexture, NULL, &playerRect);
-        SDL_RenderPresent(renderer);
-		SDL_Delay(16);
-	}
-	
-	SDL_DestroyTexture(bgTexture);
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(win);
-    IMG_Quit();
+    // Cleanup
+    SDL_DestroyWindow(window);
     SDL_Quit();
-	return 0;
 }
