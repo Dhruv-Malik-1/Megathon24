@@ -1,82 +1,69 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <arpa/inet.h>
 #include <pthread.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include "networking.h"
 
+#define SERVER_HOST "localhost"  // Replace with server's hostname if necessary
 #define PORT 8080
+#define BUFFER_SIZE 1024
 
-void *receive_messages(void *socket) {
-    int sock = *(int *)socket;
-    char buffer[1024];
+void *receive_messages(void *arg) {
+    int sockfd = *(int *)arg;
+    char buffer[BUFFER_SIZE];
 
     while (1) {
-        memset(buffer, 0, sizeof(buffer));  // Clear buffer
-        int valread = read(sock, buffer, sizeof(buffer));
-        if (valread <= 0) {
-            printf("Server disconnected.\n");
-            break;  // Exit the loop if the server is disconnected
+        ssize_t bytes_received = receive_data(sockfd, buffer, sizeof(buffer) - 1);
+        if (bytes_received <= 0) {
+            printf("Disconnected from server.\n");
+            break;
         }
-        printf("%s", buffer);  // Print the received message
+        buffer[bytes_received] = '\0'; // Null-terminate the string
+        printf("Broadcast: %s\n", buffer);
     }
+
+    close_socket(sockfd); // Close the socket
     return NULL;
 }
 
 int main() {
-    int sock = 0;
-    struct sockaddr_in serv_addr;
-    char buffer[1024] = {0};
-
-    // Creating socket file descriptor
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        printf("Socket creation error\n");
-        return -1;
+    struct hostent *server_host = gethostbyname(SERVER_HOST);
+    if (server_host == NULL) {
+        fprintf(stderr, "Host not found.\n");
+        exit(EXIT_FAILURE);
     }
 
-    // Setting up the server address structure
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(PORT);
+    int sockfd = create_socket();
+    struct sockaddr_in server_addr;
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(PORT);
+    memcpy(&server_addr.sin_addr.s_addr, server_host->h_addr, server_host->h_length);
 
-    // Convert the IP address from text to binary form
-    if (inet_pton(AF_INET, "10.2.139.125", &serv_addr.sin_addr) <= 0) {  // Replace with server's IP
-        printf("Invalid address/ Address not supported\n");
-        return -1;
+    if (connect(sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Connection failed");
+        exit(EXIT_FAILURE);
     }
 
-    // Connecting to the server
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        printf("Connection Failed\n");
-        return -1;
-    }
-    printf("Connected to the server\n");
+    printf("Connected to the server. You can start chatting!\n");
 
-    // Create a thread to receive messages from the server
-    pthread_t recv_thread;
-    pthread_create(&recv_thread, NULL, receive_messages, (void *)&sock);
+    pthread_t thread_id;
+    pthread_create(&thread_id, NULL, receive_messages, &sockfd); // Start receiving messages
 
-    // Main loop to send messages to the server
+    char message[BUFFER_SIZE];
     while (1) {
-        // Get input from the user
-        printf("Enter message to send (or just press Enter to disconnect): ");
-        fgets(buffer, sizeof(buffer), stdin);
+        printf("Enter message (type 'exit' to quit): ");
+        fgets(message, sizeof(message), stdin);
+        message[strcspn(message, "\n")] = 0; // Remove newline character
 
-        // Check if the user just pressed Enter
-        if (strcmp(buffer, "\n") == 0) {
-            break;  // Exit the loop and close the connection
+        if (strcmp(message, "exit") == 0) {
+            break; // Exit the loop
         }
 
-        // Send the message to the server
-        send(sock, buffer, strlen(buffer), 0);
-        printf("Message sent to the server\n");
+        send_data(sockfd, message, strlen(message)); // Send the message to the server
     }
 
-    // Notify server of disconnection
-    char *disconnect_message = "Client is disconnecting.\n";
-    send(sock, disconnect_message, strlen(disconnect_message), 0);
-
-    // Closing the socket
-    close(sock);
-    printf("Disconnected from the server\n");
+    close_socket(sockfd); // Close the socket
     return 0;
 }
