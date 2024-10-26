@@ -2,3 +2,6 @@ gcc -o server server.c networking.c -lpthread
 gcc -o client client.c networking.c -lpthread
 
 gcc -o main hii.c -I/usr/local/include/SDL2 -L/usr/local/lib -lSDL2 -lSDL2_image
+
+gcc client.c networking.c -o client -pthread -lSDL2 -lSDL2_image (imp)
+gcc server.c networking.c graphic.c -o server -lSDL2 -lSDL2_image -pthread
