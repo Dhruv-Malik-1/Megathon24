@@ -5,5 +5,6 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 
-extern char key;
+int move();
+
 #endif // GRAPHIC_H
