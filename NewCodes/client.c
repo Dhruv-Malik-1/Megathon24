@@ -5,7 +5,6 @@
 #include <arpa/inet.h>
 #include "networking.h"
 #include "graphic.c"
-#include "graphic.h"
 
 #define SERVER_IP "10.42.0.1"  // Replace with your server's IP address
 #define PORT 8080
@@ -15,6 +14,19 @@
 
 char** maps;
 char* name;
+
+void print_grid() {
+    for (int i = 0; i < ROWS; i++) {
+        for (int j = 0; j < COLS; j++) {
+            printf("| %c ", maps[i][j]);
+        }
+        printf("|\n");
+        for (int k = 0; k < COLS; k++) {
+            printf("----");
+        }
+        printf("-\n");
+    }
+}
 
 // Function to receive messages (maps) from the server
 void *receive_messages(void *arg) {
@@ -77,17 +89,10 @@ int main() {
     pthread_t thread_id;
     pthread_create(&thread_id, NULL, receive_messages, &sockfd); 
 
-    // Send movement commands
-    char command[1];
-    while (1) {
-        move();
-        command[0] = key;
-        if (strcmp(command, "exit") == 0) {
-            break; // Exit the loop
-        }
-        send_data(sockfd, command, strlen(command)); // Send command to the server
-    }
+    // Call the move function to handle player movement
+    move(sockfd); // Pass the socket file descriptor to move()
 
+    // Cleanup
     free(maps); // Free allocated memory
     close_socket(sockfd); // Close the socket
     return 0;
