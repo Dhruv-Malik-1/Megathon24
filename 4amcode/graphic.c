@@ -5,12 +5,7 @@
 #include <string.h>
 #include "networking.h"
 
-
 #define COMMAND_SIZE 2
-
-void bufferToMap(char buffer[]){
-
-}
 
 // Function to handle player movement input
 void move(int sockfd)
@@ -34,6 +29,9 @@ void move(int sockfd)
 		SDL_Quit();
 		return;
 	}
+	// Play the music using mpg123
+    system("mpg123 -q music.mp3 &"); // Replace with your MP3 file path
+	
 	SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
 	SDL_Surface *bgSurface = IMG_Load("field.png");
 	SDL_Texture *bgTexture = SDL_CreateTextureFromSurface(renderer, bgSurface);
