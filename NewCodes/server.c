@@ -51,6 +51,17 @@ void *client_handler(void *arg) {
     int client_sock = *(int *)arg;
     char buffer[BUFFER_SIZE];
 
+    // Find the client's index in the clients array
+    int client_index = -1;
+    pthread_mutex_lock(&client_mutex);
+    for (int i = 0; i < client_count; i++) {
+        if (clients[i] == client_sock) {
+            client_index = i;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&client_mutex);
+
     // Initialize map and positions
     init_map();
     broadcast_map(); // Send the initial map to the client
@@ -63,22 +74,23 @@ void *client_handler(void *arg) {
         }
 
         buffer[bytes_received] = '\0'; // Null-terminate the string
-        //printf("Client says: %s\n", buffer);
 
         // Update position based on command
-        if (strcmp(buffer, "W") == 0) {
-            positions[client_sock][0] = (positions[client_sock][0] - 1 + 10) % 10; // Move up
-        } else if (strcmp(buffer, "A") == 0) {
-            positions[client_sock][1] = (positions[client_sock][1] - 1 + 10) % 10; // Move left
-        } else if (strcmp(buffer, "S") == 0) {
-            positions[client_sock][0] = (positions[client_sock][0] + 1) % 10; // Move down
-        } else if (strcmp(buffer, "D") == 0) {
-            positions[client_sock][1] = (positions[client_sock][1] + 1) % 10; // Move right
+        if (client_index >= 0) { // Ensure client index is valid
+            if (strcmp(buffer, "W") == 0) {
+                positions[client_index][0] = (positions[client_index][0] - 1 + 10) % 10; // Move up
+            } else if (strcmp(buffer, "A") == 0) {
+                positions[client_index][1] = (positions[client_index][1] - 1 + 10) % 10; // Move left
+            } else if (strcmp(buffer, "S") == 0) {
+                positions[client_index][0] = (positions[client_index][0] + 1) % 10; // Move down
+            } else if (strcmp(buffer, "D") == 0) {
+                positions[client_index][1] = (positions[client_index][1] + 1) % 10; // Move right
+            }
         }
 
         // Clear the map and update it with the new positions
         memset(map, ' ', sizeof(map)); // Clear the map
-        for (int i = 0; i < MAX_CLIENTS; i++) {
+        for (int i = 0; i < client_count; i++) {
             if (positions[i][0] >= 0 && positions[i][1] >= 0) {
                 map[positions[i][0]][positions[i][1]] = '#'; // Mark position with '#'
             }
@@ -103,7 +115,7 @@ void *client_handler(void *arg) {
 
 int main() {
     int server_fd = create_socket();
-    
+
     // Enable SO_REUSEADDR to allow immediate reuse of the port
     int opt = 1;
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
