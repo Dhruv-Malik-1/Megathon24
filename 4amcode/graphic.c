@@ -4,9 +4,13 @@
 #include <SDL2/SDL_timer.h>
 #include <string.h>
 #include "networking.h"
-#include "graphic.h"
+
 
 #define COMMAND_SIZE 2
+
+void bufferToMap(char buffer[]){
+
+}
 
 // Function to handle player movement input
 void move(int sockfd)
