@@ -1,150 +1,156 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <arpa/inet.h>
 #include <pthread.h>
-#include <signal.h>
+#include <arpa/inet.h>
+#include "networking.h"
 
 #define PORT 8080
+#define BUFFER_SIZE 1024
 #define MAX_CLIENTS 10
 
-int client_count = 0;
-int client_sockets[MAX_CLIENTS];
+int clients[MAX_CLIENTS]; // Array to keep track of client sockets
+int client_count = 0; // Number of connected clients
+pthread_mutex_t client_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex for thread safety
 
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+char map[10][10]; // 10x10 map
+int positions[MAX_CLIENTS][2]; // Store x, y positions for each client
 
-void broadcast_message(const char *message) {
-    pthread_mutex_lock(&mutex);
+// Function to initialize the map with zeros
+void init_map() {
+    memset(map, ' ', sizeof(map)); // Fill the map with spaces
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (client_sockets[i] != 0) {
-            send(client_sockets[i], message, strlen(message), 0);
-        }
+        positions[i][0] = 0; // Initialize x position
+        positions[i][1] = 0; // Initialize y position
     }
-    pthread_mutex_unlock(&mutex);
 }
 
-void broadcast_new_client(int new_socket, int client_number) {
-    char message[50];
-    snprintf(message, sizeof(message), "New client %d connected!\n", client_number);
-    broadcast_message(message);
+// Function to broadcast the updated map to all clients
+void broadcast_map() {
+    char buffer[BUFFER_SIZE];
+    memset(buffer, 0, sizeof(buffer)); // Clear the buffer
+
+    for (int i = 0; i < 10; i++) {
+        for (int j = 0; j < 10; j++) {
+            buffer[i * 11 + j] = map[i][j]; // Add map to the buffer
+            if (j < 9) buffer[i * 11 + j + 1] = ' '; // Add space between cells
+        }
+        buffer[(i + 1) * 11 - 1] = '\n'; // New line after each row
+    }
+
+    pthread_mutex_lock(&client_mutex); // Lock mutex
+    for (int i = 0; i < client_count; i++) {
+        send_data(clients[i], buffer, strlen(buffer)); // Send the map to each client
+    }
+    pthread_mutex_unlock(&client_mutex); // Unlock mutex
 }
 
-void *handle_client(void *client_socket) {
-    int sock = *(int *)client_socket;
-    free(client_socket);
-    char buffer[1024] = {0};
-    
-    pthread_mutex_lock(&mutex);
-    int client_number = ++client_count;
-    client_sockets[client_number - 1] = sock; // Store client socket
-    pthread_mutex_unlock(&mutex);
+// Function to handle each client connection
+void *client_handler(void *arg) {
+    int client_sock = *(int *)arg;
+    char buffer[BUFFER_SIZE];
 
-    // Send welcome message to client
-    char *welcome_message = "Welcome to the Halloween game server!";
-    send(sock, welcome_message, strlen(welcome_message), 0);
-
-    // Broadcast new client connection
-    broadcast_new_client(sock, client_number);
+    // Initialize map and positions
+    init_map();
+    broadcast_map(); // Send the initial map to the client
 
     while (1) {
-        // Receive message from the client
-        int valread = read(sock, buffer, 1024);
-        if (valread <= 0) {
-            break; // Break the loop if the client disconnected
+        ssize_t bytes_received = receive_data(client_sock, buffer, sizeof(buffer) - 1);
+        if (bytes_received <= 0) {
+            // Client disconnected
+            break;
         }
 
-        // Print and echo the message back to the client
-        printf("Client %d says: %s\n", client_number, buffer);
-        send(sock, buffer, valread, 0); // Echo the message back
+        buffer[bytes_received] = '\0'; // Null-terminate the string
+        printf("Client says: %s\n", buffer);
+
+        // Update position based on command
+        if (strcmp(buffer, "W") == 0) {
+            positions[client_sock][0] = (positions[client_sock][0] - 1 + 10) % 10; // Move up
+        } else if (strcmp(buffer, "A") == 0) {
+            positions[client_sock][1] = (positions[client_sock][1] - 1 + 10) % 10; // Move left
+        } else if (strcmp(buffer, "S") == 0) {
+            positions[client_sock][0] = (positions[client_sock][0] + 1) % 10; // Move down
+        } else if (strcmp(buffer, "D") == 0) {
+            positions[client_sock][1] = (positions[client_sock][1] + 1) % 10; // Move right
+        }
+
+        // Clear the map and update it with the new positions
+        memset(map, ' ', sizeof(map)); // Clear the map
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            if (positions[i][0] >= 0 && positions[i][1] >= 0) {
+                map[positions[i][0]][positions[i][1]] = '#'; // Mark position with '#'
+            }
+        }
+
+        // Broadcast the updated map to all clients
+        broadcast_map();
     }
 
-    printf("Client %d disconnected\n", client_number);
-
-    // Lock mutex to remove client and decrease count
-    pthread_mutex_lock(&mutex);
-    client_sockets[client_number - 1] = 0; // Remove client socket
-    client_count--;
-    pthread_mutex_unlock(&mutex);
-
-    // Close the connection
-    close(sock);
+    // Remove the client from the list and notify others
+    pthread_mutex_lock(&client_mutex);
+    for (int i = 0; i < client_count; i++) {
+        if (clients[i] == client_sock) {
+            clients[i] = clients[--client_count]; // Remove the client
+            break;
+        }
+    }
+    pthread_mutex_unlock(&client_mutex);
+    close_socket(client_sock); // Close the client socket
     return NULL;
 }
 
-void handle_sigint(int sig) {
-    printf("Server shutting down...\n");
-    broadcast_message("Server is shutting down. All clients will be disconnected.\n");
-    sleep(1);  // Give time for the message to be sent
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (client_sockets[i] != 0) {
-            close(client_sockets[i]);
-        }
-    }
-    exit(0);
-}
-
 int main() {
-    signal(SIGINT, handle_sigint);  // Handle Ctrl+C signal
-
-    int server_fd;
-    struct sockaddr_in address;
-    int addrlen = sizeof(address);
-
-    // Creating socket file descriptor
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-        perror("Socket failed");
-        exit(EXIT_FAILURE);
-    }
-
-    // Set socket option to reuse address
+    int server_fd = create_socket();
+    
+    // Enable SO_REUSEADDR to allow immediate reuse of the port
     int opt = 1;
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
-        perror("Setsockopt failed");
-        close(server_fd);
+        perror("setsockopt failed");
         exit(EXIT_FAILURE);
     }
 
-    // Setting up the server address structure
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY; // Listen on all interfaces
-    address.sin_port = htons(PORT);
+    struct sockaddr_in server_addr;
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;  // Accept connections on any IP
+    server_addr.sin_port = htons(PORT);
 
-    // Binding the socket to the network address and port
-    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
+    if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
         perror("Bind failed");
-        close(server_fd);
         exit(EXIT_FAILURE);
     }
 
-    // Listening for incoming connections
     if (listen(server_fd, MAX_CLIENTS) < 0) {
         perror("Listen failed");
-        close(server_fd);
         exit(EXIT_FAILURE);
     }
-    printf("Server is listening on port %d\n", PORT);
+
+    printf("Server is listening on port %d...\n", PORT);
 
     while (1) {
-        // Accept incoming client connection
-        int *new_socket = malloc(sizeof(int));
-        if ((*new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
+        struct sockaddr_in client_addr;
+        socklen_t addr_len = sizeof(client_addr);
+        int client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &addr_len);
+        if (client_fd < 0) {
             perror("Accept failed");
-            free(new_socket);
             continue;
         }
-        printf("New client connected\n");
 
-        // Create a new thread to handle the client
-        pthread_t thread_id;
-        if (pthread_create(&thread_id, NULL, handle_client, (void *)new_socket) != 0) {
-            perror("Could not create thread");
-            free(new_socket);
-            continue;
+        printf("Connected to client: %s\n", inet_ntoa(client_addr.sin_addr));
+
+        // Add the new client to the clients array and start a new thread for it
+        pthread_mutex_lock(&client_mutex);
+        if (client_count < MAX_CLIENTS) {
+            clients[client_count++] = client_fd;
+            pthread_t tid;
+            pthread_create(&tid, NULL, client_handler, &client_fd);
+        } else {
+            printf("Max clients connected. Rejecting new connection.\n");
+            close_socket(client_fd); // Reject new client
         }
-        pthread_detach(thread_id);  // Detach the thread to handle cleanup automatically
+        pthread_mutex_unlock(&client_mutex);
     }
 
-    close(server_fd);
+    close_socket(server_fd); // Close the server socket
     return 0;
 }
