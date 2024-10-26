@@ -2,17 +2,19 @@
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_timer.h>
 
-int main(int argc, char *argv[])
+int main()
 {
 	SDL_Init(SDL_INIT_VIDEO);
 	IMG_Init(IMG_INIT_PNG);
-	SDL_Window *win = SDL_CreateWindow("GAME",SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED,1000, 1000, 0);
+	SDL_Window *win = SDL_CreateWindow("GAME",SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED,1600,800,0);
 	SDL_Renderer* renderer = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
 
 	SDL_Surface *bgSurface = IMG_Load("field.png");
 	SDL_Texture *bgTexture = SDL_CreateTextureFromSurface(renderer, bgSurface);
 
 	SDL_FreeSurface(bgSurface);
+
+	
 	
 	SDL_Surface *playerSurface = IMG_Load("player.png");
     SDL_Texture *playerTexture = SDL_CreateTextureFromSurface(renderer, playerSurface);
