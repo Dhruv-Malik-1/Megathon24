@@ -8,8 +8,8 @@
 
 #define SERVER_IP "10.42.0.1"  // Replace with your server's IP address
 #define PORT 8080
-#define ROWS 10
-#define COLS 10
+#define ROWS 21
+#define COLS 41
 #define BUFFER_SIZE 1024
 
 char** maps;
