@@ -1,10 +1,6 @@
-// graphic.h
-#ifndef GRAPHIC_H
-#define GRAPHIC_H
+#ifndef MOVE_H
+#define MOVE_H
 
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_image.h>
+void move(int sockfd);
 
-int move();
-
-#endif // GRAPHIC_H
+#endif // MOVE_H
