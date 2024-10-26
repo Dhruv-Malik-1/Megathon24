@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <string.h>
 #include "networking.h"
-#include "graphic.h"
 
 #define COMMAND_SIZE 2
 
@@ -17,7 +16,8 @@ void move(int sockfd) {
         return;
     }
 
-    SDL_Window *window = SDL_CreateWindow("Player Movement", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 640, 480, SDL_WINDOW_SHOWN);
+    SDL_Window *window = SDL_CreateWindow("Player Movement", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 0, 0, SDL_WINDOW_FULLSCREEN);
+
     if (!window) {
         fprintf(stderr, "Could not create window: %s\n", SDL_GetError());
         SDL_Quit();
