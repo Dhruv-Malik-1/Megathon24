@@ -1,211 +1,128 @@
+#include <SDL2/SDL.h>
 #include <stdio.h>
-#include <stdlib.h>
+#include <SDL2/SDL_image.h>
+#include <SDL2/SDL_timer.h>
 #include <string.h>
-#include <pthread.h>
-#include <arpa/inet.h>
 #include "networking.h"
 
-#define PORT 8080
-#define BUFFER_SIZE 1024
-#define MAX_CLIENTS 10
-#define GRID_ROWS 21  // Updated grid row count
-#define GRID_COLS 41  // Updated grid column count
+#define COMMAND_SIZE 2
 
-int clients[MAX_CLIENTS]; // Array to keep track of client sockets
-int client_count = 0; // Number of connected clients
-pthread_mutex_t client_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex for thread safety
+void bufferToMap(char* buffer)
+{
+	struct node
+	{
+		SDL_Rect client;
+		struct node *next;
+	};
 
-char map[GRID_ROWS][GRID_COLS]; 
-int positions[MAX_CLIENTS][2]; // Store x, y positions for each client
-
-// Function to initialize the map with zeros
-void init_map() {
-    memset(map, ' ', sizeof(map)); // Fill the map with spaces
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        positions[i][0] = 0; // Initialize x position
-        positions[i][1] = 0; // Initialize y position
-    }
-}
-
-// Function to broadcast the updated map to all clients
-void broadcast_map() {
-    char buffer[BUFFER_SIZE];
-    memset(buffer, 0, sizeof(buffer)); // Clear the buffer
-
-    for (int i = 0; i < GRID_ROWS; i++) {
-        for (int j = 0; j < GRID_COLS; j++) {
-            buffer[i * (GRID_COLS + 1) + j] = map[i][j]; // Add map to the buffer
-            if (j < GRID_COLS - 1) buffer[i * (GRID_COLS + 1) + j + 1] = ' '; // Add space between cells
-        }
-        buffer[(i + 1) * (GRID_COLS + 1) - 1] = '\n'; // New line after each row
-    }
-
-    pthread_mutex_lock(&client_mutex); // Lock mutex
-    for (int i = 0; i < client_count; i++) {
-        send_data(clients[i], buffer, strlen(buffer)); // Send the map to each client
-    }
-    pthread_mutex_unlock(&client_mutex); // Unlock mutex
-}
-
-int Wblock(int x, int y){
-	int tmp = (x - 1 + GRID_ROWS) % GRID_ROWS;
-	if(tmp%4 == 3 && y%4!=0){
-		return 0;
-	}else{
-		return 1;
+	struct node *prev = NULL;
+	struct node *head = NULL;
+	for (int i = 0; i < 22; i++)
+	{
+		for (int j = 0; j < 42; j++)
+		{
+			if (buffer[j + (42 * i)] == '#')
+			{
+				struct node *temp = (struct node *)malloc(sizeof(struct node));
+                temp->next=NULL;
+				temp->client = (SDL_Rect){44 * j, 44 * i, 44, 44};
+				if (prev != NULL)
+				{
+					prev->next = temp;
+					head = temp;
+				}
+				prev = temp;
+			}
+		}
+		i++;
 	}
+	// now you have head,
+    
 }
-int Ablock(int x, int y){
-	int tmp = y - 1 + GRID_COLS) % GRID_COLS
-	if(tmp%4 == 3 && x%4!=0){
-		return 0;
-	}else{
-		return 1;
+
+// Function to handle player movement input
+void move(int sockfd)
+{
+	SDL_Rect playerRect = {44*20*0, 44*10*0, 44, 44};
+
+	SDL_Event event;
+	char command[COMMAND_SIZE];
+
+	// Initialize SDL
+	if (SDL_Init(SDL_INIT_VIDEO) < 0)
+	{
+		fprintf(stderr, "Could not initialize SDL: %s\n", SDL_GetError());
+		return;
 	}
-}
-int Sblock(int x, int y){
-	int tmp = (x + 1) % GRID_ROWS;
-	if(tmp%4 == 1 && y%4!=0){
-		return 0;
-	}else{
-		return 1;
+	IMG_Init(IMG_INIT_PNG);
+
+	SDL_Window *window = SDL_CreateWindow("Player Movement", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 1804, 924, SDL_WINDOW_SHOWN); // 44 per cell
+	if (!window)
+	{
+		fprintf(stderr, "Could not create window: %s\n", SDL_GetError());
+		SDL_Quit();
+		return;
 	}
-}
-int Dblock(int x, int y){
-	int tmp = (y + 1) % GRID_COLS;
-	if(tmp%4 == 1 && x%4!=0){
-		return 0;
-	}else{
-		return 1;
+	SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+	SDL_Surface *bgSurface = IMG_Load("field.png");
+	SDL_Texture *bgTexture = SDL_CreateTextureFromSurface(renderer, bgSurface);
+
+	SDL_FreeSurface(bgSurface);
+	SDL_Surface *playerSurface = IMG_Load("player.png");
+	SDL_Texture *playerTexture = SDL_CreateTextureFromSurface(renderer, playerSurface);
+	SDL_FreeSurface(playerSurface);
+
+	// Main loop to handle events
+	int running = 1;
+	while (running)
+	{
+		while (SDL_PollEvent(&event))
+		{
+			if (event.type == SDL_QUIT)
+			{
+				running = 0; // Exit the loop if the window is closed
+			}
+			else if (event.type == SDL_KEYDOWN)
+			{
+				switch (event.key.keysym.sym)
+				{
+				case SDLK_w:
+					command[0] = 'W';
+					command[1] = '\0'; // Null-terminate the string
+					playerRect.y -= 44;
+					break;
+				case SDLK_a:
+					command[0] = 'A';
+					command[1] = '\0'; // Null-terminate the string
+					playerRect.x -= 44;
+					break;
+				case SDLK_s:
+					command[0] = 'S';
+					command[1] = '\0'; // Null-terminate the string
+					playerRect.y += 44;
+					break;
+				case SDLK_d:
+					command[0] = 'D';
+					command[1] = '\0'; // Null-terminate the string
+					playerRect.x += 44;
+					break;
+				default:
+					continue; // Ignore other keys
+				}
+				send_data(sockfd, command, strlen(command)); // Send command to the server
+			}
+		}
+		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+		SDL_RenderClear(renderer);
+		SDL_RenderCopy(renderer, bgTexture, NULL, NULL);
+
+		SDL_RenderCopy(renderer, playerTexture, NULL, &playerRect); // render player
+		SDL_RenderPresent(renderer);
+		SDL_Delay(16);
 	}
-}
-
-// Function to handle each client connection
-void *client_handler(void *arg) {
-    int client_sock = *(int *)arg;
-    char buffer[BUFFER_SIZE];
-
-    // Find the client's index in the clients array
-    int client_index = -1;
-    pthread_mutex_lock(&client_mutex);
-    for (int i = 0; i < client_count; i++) {
-        if (clients[i] == client_sock) {
-            client_index = i;
-            break;
-        }
-    }
-    pthread_mutex_unlock(&client_mutex);
-
-    // Initialize map and positions
-    init_map();
-    broadcast_map(); // Send the initial map to the client
-
-    while (1) {
-        ssize_t bytes_received = receive_data(client_sock, buffer, sizeof(buffer) - 1);
-        if (bytes_received <= 0) {
-            // Client disconnected
-            break;
-        }
-
-        buffer[bytes_received] = '\0'; // Null-terminate the string
-
-        // Update position based on command
-        if (client_index >= 0) { // Ensure client index is valid
-            if (strcmp(buffer, "W") == 0) {
-            	if(Wblock(positions[client_index][0],positions[client_index][1]) == 1)
-                positions[client_index][0] = (positions[client_index][0] - 1 + GRID_ROWS) % GRID_ROWS; // Move up
-            } else if (strcmp(buffer, "A") == 0) {
-				if(Ablock(positions[client_index][0],positions[client_index][1]) == 1)
-                positions[client_index][1] = (positions[client_index][1] - 1 + GRID_COLS) % GRID_COLS; // Move left
-            } else if (strcmp(buffer, "S") == 0) {
-            	if(Sblock(positions[client_index][0],positions[client_index][1]) == 1){
-                positions[client_index][0] = (positions[client_index][0] + 1) % GRID_ROWS; // Move down
-            } else if (strcmp(buffer, "D") == 0) {
-            	if(Dblock(positions[client_index][0],positions[client_index][1]) == 1){
-                positions[client_index][1] = (positions[client_index][1] + 1) % GRID_COLS; // Move right
-            }
-        }
-
-        // Clear the map and update it with the new positions
-        memset(map, ' ', sizeof(map)); // Clear the map
-        for (int i = 0; i < client_count; i++) {
-            if (positions[i][0] >= 0 && positions[i][1] >= 0) {
-                map[positions[i][0]][positions[i][1]] = '#'; // Mark position with '#'
-            }
-        }
-
-        // Broadcast the updated map to all clients
-        broadcast_map();
-    }
-
-    // Remove the client from the list and notify others
-    pthread_mutex_lock(&client_mutex);
-    for (int i = 0; i < client_count; i++) {
-        if (clients[i] == client_sock) {
-            clients[i] = clients[--client_count]; // Remove the client
-            break;
-        }
-    }
-    pthread_mutex_unlock(&client_mutex);
-    close_socket(client_sock); // Close the client socket
-    return NULL;
-}
-
-void block(){
-	
-}
-
-int main() {
-    int server_fd = create_socket();
-
-    // Enable SO_REUSEADDR to allow immediate reuse of the port
-    int opt = 1;
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
-        perror("setsockopt failed");
-        exit(EXIT_FAILURE);
-    }
-
-    struct sockaddr_in server_addr;
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = INADDR_ANY;  // Accept connections on any IP
-    server_addr.sin_port = htons(PORT);
-
-    if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        perror("Bind failed");
-        exit(EXIT_FAILURE);
-    }
-
-    if (listen(server_fd, MAX_CLIENTS) < 0) {
-        perror("Listen failed");
-        exit(EXIT_FAILURE);
-    }
-
-    printf("Server is listening on port %d...\n", PORT);
-
-    while (1) {
-        struct sockaddr_in client_addr;
-        socklen_t addr_len = sizeof(client_addr);
-        int client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &addr_len);
-        if (client_fd < 0) {
-            perror("Accept failed");
-            continue;
-        }
-
-        printf("Connected to client: %s\n", inet_ntoa(client_addr.sin_addr));
-
-        // Add the new client to the clients array and start a new thread for it
-        pthread_mutex_lock(&client_mutex);
-        if (client_count < MAX_CLIENTS) {
-            clients[client_count++] = client_fd;
-            pthread_t tid;
-            pthread_create(&tid, NULL, client_handler, &client_fd);
-        } else {
-            printf("Max clients connected. Rejecting new connection.\n");
-            close_socket(client_fd); // Reject new client
-        }
-        pthread_mutex_unlock(&client_mutex);
-    }
-
-    close_socket(server_fd); // Close the server socket
-    return 0;
+	SDL_DestroyTexture(bgTexture);
+	SDL_DestroyRenderer(renderer);
+	SDL_DestroyWindow(window);
+	IMG_Quit();
+	SDL_Quit();
 }
